@@ -1,6 +1,7 @@
 import asyncio
 import ssl
 import os
+import base64
 
 from aioquic.asyncio import connect
 from aioquic.asyncio.protocol import QuicConnectionProtocol
@@ -14,6 +15,7 @@ from file_transfer import calculate_sha256
 
 HOST = "127.0.0.1"
 PORT = 4433
+UPLOAD_CHUNK_SIZE = 8
 
 
 class QSPClientProtocol(QuicConnectionProtocol):
@@ -62,10 +64,7 @@ class QSPClient:
             MessageType.AUTH,
             self.session.next_sequence(),
             self.session.session_id,
-            {
-                "username": username,
-                "password": password
-            }
+            {"username": username, "password": password}
         )
 
         await self.send_packet(packet)
@@ -126,30 +125,71 @@ class QSPClient:
             print("Upload failed: file does not exist:", filepath)
             return
 
-        with open(filepath, "r", encoding="utf-8") as file:
-            content = file.read()
+        expected_hash = calculate_sha256(filepath)
 
-        file_hash = calculate_sha256(filepath)
-
-        packet = QSPPacket(
+        upload_req = QSPPacket(
             MessageType.UPLOAD_REQ,
             self.session.next_sequence(),
             self.session.session_id,
             {
                 "filename": filename,
-                "content": content,
-                "sha256": file_hash
+                "sha256": expected_hash
             }
         )
 
-        response = await self.send_packet(packet)
+        response = await self.send_packet(upload_req)
 
-        if response.payload.get("status") == "OK":
-            print("\nUpload completed:", filename)
-            print("SHA-256:", response.payload.get("sha256"))
+        if response.payload.get("status") != "OK":
+            print("Upload rejected:", response.payload.get("message"))
+            return
+
+        offset = response.payload.get("next_offset", 0)
+
+        with open(filepath, "rb") as file:
+            while True:
+                file.seek(offset)
+                chunk = file.read(UPLOAD_CHUNK_SIZE)
+
+                if not chunk:
+                    break
+
+                data_packet = QSPPacket(
+                    MessageType.DATA,
+                    self.session.next_sequence(),
+                    self.session.session_id,
+                    {
+                        "filename": filename,
+                        "offset": offset,
+                        "chunk": base64.b64encode(chunk).decode("utf-8")
+                    }
+                )
+
+                ack = await self.send_packet(data_packet)
+
+                if ack.payload.get("status") != "OK":
+                    print("Chunk upload failed:", ack.payload.get("message"))
+                    return
+
+                offset = ack.payload.get("next_offset", offset + len(chunk))
+
+        complete_packet = QSPPacket(
+            MessageType.COMPLETE,
+            self.session.next_sequence(),
+            self.session.session_id,
+            {
+                "filename": filename,
+                "sha256": expected_hash
+            }
+        )
+
+        complete = await self.send_packet(complete_packet)
+
+        if complete.payload.get("status") == "OK":
+            print("\nChunked upload completed:", filename)
+            print("SHA-256:", complete.payload.get("sha256"))
             print("Integrity verification PASSED")
         else:
-            print("\nUpload failed:", response.payload.get("message"))
+            print("\nUpload failed:", complete.payload.get("message"))
 
     async def send_close(self):
         packet = QSPPacket(
@@ -182,6 +222,7 @@ async def main():
 
         await client.send_init()
         await client.send_auth("admin", "admin123")
+
         await client.send_list_request()
         await client.send_download_request("hello.txt")
 

@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import base64
 
 from aioquic.asyncio import serve
 from aioquic.asyncio.protocol import QuicConnectionProtocol
@@ -17,7 +18,6 @@ from file_transfer import calculate_sha256
 HOST = "0.0.0.0"
 PORT = 4433
 
-
 logging.basicConfig(
     filename="qsp_server.log",
     level=logging.INFO,
@@ -29,6 +29,7 @@ class QSPServerProtocol(QuicConnectionProtocol):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.session = Session()
+        self.current_upload = None
 
     def quic_event_received(self, event):
         if isinstance(event, StreamDataReceived):
@@ -145,29 +146,100 @@ class QSPServerProtocol(QuicConnectionProtocol):
                     {"status": "ERROR", "message": "UPLOAD_REQ invalid before authentication"}
                 )
 
-            self.session.dfa.transition(State.TRANSFERRING)
-
             filename = packet.payload.get("filename")
-            content = packet.payload.get("content")
             expected_hash = packet.payload.get("sha256")
 
-            if not filename or content is None or not expected_hash:
-                self.session.dfa.transition(State.READY)
+            if not filename or not expected_hash:
                 return QSPPacket(
                     MessageType.ERROR,
                     self.session.next_sequence(),
                     self.session.session_id,
-                    {"status": "ERROR", "message": "Invalid upload payload"}
+                    {"status": "ERROR", "message": "Invalid UPLOAD_REQ payload"}
                 )
 
             os.makedirs("server_files", exist_ok=True)
             filepath = os.path.join("server_files", filename)
 
-            with open(filepath, "w", encoding="utf-8") as file:
-                file.write(content)
+            self.current_upload = {
+                "filename": filename,
+                "filepath": filepath,
+                "expected_hash": expected_hash,
+                "next_offset": 0
+            }
 
-            actual_hash = calculate_sha256(filepath)
+            with open(filepath, "wb") as file:
+                pass
 
+            self.session.dfa.transition(State.TRANSFERRING)
+
+            return QSPPacket(
+                MessageType.ACK,
+                self.session.next_sequence(),
+                self.session.session_id,
+                {
+                    "status": "OK",
+                    "message": "Ready to receive chunks",
+                    "next_offset": 0
+                }
+            )
+
+        if packet.msg_type == MessageType.DATA:
+            if self.session.dfa.state != State.TRANSFERRING or self.current_upload is None:
+                return QSPPacket(
+                    MessageType.ERROR,
+                    self.session.next_sequence(),
+                    self.session.session_id,
+                    {"status": "ERROR", "message": "DATA invalid outside transfer"}
+                )
+
+            chunk_b64 = packet.payload.get("chunk", "")
+            offset = packet.payload.get("offset")
+
+            chunk_bytes = base64.b64decode(chunk_b64.encode("utf-8"))
+
+            if offset != self.current_upload["next_offset"]:
+                return QSPPacket(
+                    MessageType.ERROR,
+                    self.session.next_sequence(),
+                    self.session.session_id,
+                    {
+                        "status": "ERROR",
+                        "message": "Invalid chunk offset",
+                        "expected_offset": self.current_upload["next_offset"]
+                    }
+                )
+
+            with open(self.current_upload["filepath"], "r+b") as file:
+                file.seek(offset)
+                file.write(chunk_bytes)
+
+            self.current_upload["next_offset"] += len(chunk_bytes)
+            
+            return QSPPacket(
+                MessageType.ACK,
+                self.session.next_sequence(),
+                self.session.session_id,
+                {
+                    "status": "OK",
+                    "message": "Chunk received",
+                    "next_offset": self.current_upload["next_offset"]
+                }
+            )
+
+        if packet.msg_type == MessageType.COMPLETE:
+            if self.session.dfa.state != State.TRANSFERRING or self.current_upload is None:
+                return QSPPacket(
+                    MessageType.ERROR,
+                    self.session.next_sequence(),
+                    self.session.session_id,
+                    {"status": "ERROR", "message": "COMPLETE invalid outside transfer"}
+                )
+
+            actual_hash = calculate_sha256(self.current_upload["filepath"])
+            expected_hash = self.current_upload["expected_hash"]
+            filename = self.current_upload["filename"]
+
+            self.current_upload = None
             self.session.dfa.transition(State.READY)
 
             if actual_hash == expected_hash:
@@ -177,7 +249,7 @@ class QSPServerProtocol(QuicConnectionProtocol):
                     self.session.session_id,
                     {
                         "status": "OK",
-                        "message": "Upload completed",
+                        "message": "Chunked upload completed",
                         "filename": filename,
                         "sha256": actual_hash
                     }
