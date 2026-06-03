@@ -160,15 +160,19 @@ class QSPServerProtocol(QuicConnectionProtocol):
             os.makedirs("server_files", exist_ok=True)
             filepath = os.path.join("server_files", filename)
 
+            if os.path.exists(filepath):
+                next_offset = os.path.getsize(filepath)
+            else:
+                next_offset = 0
+                with open(filepath, "wb") as file:
+                    pass
+
             self.current_upload = {
                 "filename": filename,
                 "filepath": filepath,
                 "expected_hash": expected_hash,
-                "next_offset": 0
+                "next_offset": next_offset
             }
-
-            with open(filepath, "wb") as file:
-                pass
 
             self.session.dfa.transition(State.TRANSFERRING)
 
@@ -179,7 +183,7 @@ class QSPServerProtocol(QuicConnectionProtocol):
                 {
                     "status": "OK",
                     "message": "Ready to receive chunks",
-                    "next_offset": 0
+                    "next_offset": next_offset
                 }
             )
 
@@ -214,7 +218,7 @@ class QSPServerProtocol(QuicConnectionProtocol):
                 file.write(chunk_bytes)
 
             self.current_upload["next_offset"] += len(chunk_bytes)
-            
+
             return QSPPacket(
                 MessageType.ACK,
                 self.session.next_sequence(),
