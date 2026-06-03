@@ -11,6 +11,7 @@ from protocol import QSPPacket, MessageType
 from auth import authenticate
 from session import Session
 from dfa import State
+from file_transfer import calculate_sha256
 
 
 HOST = "0.0.0.0"
@@ -98,6 +99,43 @@ class QSPServerProtocol(QuicConnectionProtocol):
                 self.session.next_sequence(),
                 self.session.session_id,
                 {"status": "OK", "files": files}
+            )
+
+        if packet.msg_type == MessageType.DOWNLOAD_REQ:
+            if self.session.dfa.state != State.READY:
+                return QSPPacket(
+                    MessageType.ERROR,
+                    self.session.next_sequence(),
+                    self.session.session_id,
+                    {"status": "ERROR", "message": "DOWNLOAD_REQ invalid before authentication"}
+                )
+
+            filename = packet.payload.get("filename")
+            filepath = os.path.join("server_files", filename)
+
+            if not os.path.exists(filepath):
+                return QSPPacket(
+                    MessageType.ERROR,
+                    self.session.next_sequence(),
+                    self.session.session_id,
+                    {"status": "ERROR", "message": "File not found"}
+                )
+
+            with open(filepath, "r", encoding="utf-8") as file:
+                content = file.read()
+
+            file_hash = calculate_sha256(filepath)
+
+            return QSPPacket(
+                MessageType.DATA,
+                self.session.next_sequence(),
+                self.session.session_id,
+                {
+                    "status": "OK",
+                    "filename": filename,
+                    "content": content,
+                    "sha256": file_hash
+                }
             )
 
         if packet.msg_type == MessageType.CLOSE:

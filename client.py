@@ -1,5 +1,6 @@
 import asyncio
 import ssl
+import os
 
 from aioquic.asyncio import connect
 from aioquic.asyncio.protocol import QuicConnectionProtocol
@@ -8,6 +9,7 @@ from aioquic.quic.events import StreamDataReceived
 
 from protocol import QSPPacket, MessageType
 from session import Session
+from file_transfer import calculate_sha256
 
 
 HOST = "127.0.0.1"
@@ -77,12 +79,45 @@ class QSPClient:
         )
 
         response = await self.send_packet(packet)
-
         files = response.payload.get("files", [])
 
         print("\nServer files:")
         for file in files:
             print("-", file)
+
+    async def send_download_request(self, filename):
+        packet = QSPPacket(
+            MessageType.DOWNLOAD_REQ,
+            self.session.next_sequence(),
+            self.session.session_id,
+            {"filename": filename}
+        )
+
+        response = await self.send_packet(packet)
+
+        if response.payload.get("status") != "OK":
+            print("Download failed:", response.payload.get("message"))
+            return
+
+        content = response.payload.get("content")
+        expected_hash = response.payload.get("sha256")
+
+        os.makedirs("client_files", exist_ok=True)
+        output_path = os.path.join("client_files", filename)
+
+        with open(output_path, "w", encoding="utf-8") as file:
+            file.write(content)
+
+        actual_hash = calculate_sha256(output_path)
+
+        print("\nDownload completed:", filename)
+        print("Expected SHA-256:", expected_hash)
+        print("Actual SHA-256:  ", actual_hash)
+
+        if actual_hash == expected_hash:
+            print("Integrity verification PASSED")
+        else:
+            print("Integrity verification FAILED")
 
     async def send_close(self):
         packet = QSPPacket(
@@ -116,6 +151,7 @@ async def main():
         await client.send_init()
         await client.send_auth("admin", "admin123")
         await client.send_list_request()
+        await client.send_download_request("hello.txt")
         await client.send_close()
 
 
