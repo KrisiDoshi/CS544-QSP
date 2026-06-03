@@ -40,6 +40,7 @@ class QSPClient:
 
         data = await self.protocol.response_queue.get()
         response = QSPPacket.deserialize(data)
+
         print("Server response:", response.payload)
         return response
 
@@ -66,6 +67,22 @@ class QSPClient:
         )
 
         await self.send_packet(packet)
+
+    async def send_list_request(self):
+        packet = QSPPacket(
+            MessageType.LIST_REQ,
+            self.session.next_sequence(),
+            self.session.session_id,
+            {}
+        )
+
+        response = await self.send_packet(packet)
+
+        files = response.payload.get("files", [])
+
+        print("\nServer files:")
+        for file in files:
+            print("-", file)
 
     async def send_close(self):
         packet = QSPPacket(
@@ -98,6 +115,7 @@ async def main():
 
         await client.send_init()
         await client.send_auth("admin", "admin123")
+        await client.send_list_request()
         await client.send_close()
 
 
