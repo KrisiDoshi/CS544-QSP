@@ -53,7 +53,6 @@ class QSPServerProtocol(QuicConnectionProtocol):
 
         if packet.msg_type == MessageType.INIT:
             self.session.dfa.transition(State.NEGOTIATED)
-
             return QSPPacket(
                 MessageType.INIT_ACK,
                 self.session.next_sequence(),
@@ -68,7 +67,6 @@ class QSPServerProtocol(QuicConnectionProtocol):
             if authenticate(username, password):
                 self.session.dfa.transition(State.AUTHENTICATED)
                 self.session.dfa.transition(State.READY)
-
                 return QSPPacket(
                     MessageType.AUTH_RESULT,
                     self.session.next_sequence(),
@@ -135,6 +133,65 @@ class QSPServerProtocol(QuicConnectionProtocol):
                     "filename": filename,
                     "content": content,
                     "sha256": file_hash
+                }
+            )
+
+        if packet.msg_type == MessageType.UPLOAD_REQ:
+            if self.session.dfa.state != State.READY:
+                return QSPPacket(
+                    MessageType.ERROR,
+                    self.session.next_sequence(),
+                    self.session.session_id,
+                    {"status": "ERROR", "message": "UPLOAD_REQ invalid before authentication"}
+                )
+
+            self.session.dfa.transition(State.TRANSFERRING)
+
+            filename = packet.payload.get("filename")
+            content = packet.payload.get("content")
+            expected_hash = packet.payload.get("sha256")
+
+            if not filename or content is None or not expected_hash:
+                self.session.dfa.transition(State.READY)
+                return QSPPacket(
+                    MessageType.ERROR,
+                    self.session.next_sequence(),
+                    self.session.session_id,
+                    {"status": "ERROR", "message": "Invalid upload payload"}
+                )
+
+            os.makedirs("server_files", exist_ok=True)
+            filepath = os.path.join("server_files", filename)
+
+            with open(filepath, "w", encoding="utf-8") as file:
+                file.write(content)
+
+            actual_hash = calculate_sha256(filepath)
+
+            self.session.dfa.transition(State.READY)
+
+            if actual_hash == expected_hash:
+                return QSPPacket(
+                    MessageType.COMPLETE,
+                    self.session.next_sequence(),
+                    self.session.session_id,
+                    {
+                        "status": "OK",
+                        "message": "Upload completed",
+                        "filename": filename,
+                        "sha256": actual_hash
+                    }
+                )
+
+            return QSPPacket(
+                MessageType.ERROR,
+                self.session.next_sequence(),
+                self.session.session_id,
+                {
+                    "status": "ERROR",
+                    "message": "SHA-256 mismatch",
+                    "expected": expected_hash,
+                    "actual": actual_hash
                 }
             )
 

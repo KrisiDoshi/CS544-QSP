@@ -119,6 +119,38 @@ class QSPClient:
         else:
             print("Integrity verification FAILED")
 
+    async def send_upload_request(self, filename):
+        filepath = os.path.join("client_files", filename)
+
+        if not os.path.exists(filepath):
+            print("Upload failed: file does not exist:", filepath)
+            return
+
+        with open(filepath, "r", encoding="utf-8") as file:
+            content = file.read()
+
+        file_hash = calculate_sha256(filepath)
+
+        packet = QSPPacket(
+            MessageType.UPLOAD_REQ,
+            self.session.next_sequence(),
+            self.session.session_id,
+            {
+                "filename": filename,
+                "content": content,
+                "sha256": file_hash
+            }
+        )
+
+        response = await self.send_packet(packet)
+
+        if response.payload.get("status") == "OK":
+            print("\nUpload completed:", filename)
+            print("SHA-256:", response.payload.get("sha256"))
+            print("Integrity verification PASSED")
+        else:
+            print("\nUpload failed:", response.payload.get("message"))
+
     async def send_close(self):
         packet = QSPPacket(
             MessageType.CLOSE,
@@ -152,6 +184,10 @@ async def main():
         await client.send_auth("admin", "admin123")
         await client.send_list_request()
         await client.send_download_request("hello.txt")
+
+        await client.send_upload_request("upload_test.txt")
+
+        await client.send_list_request()
         await client.send_close()
 
 
