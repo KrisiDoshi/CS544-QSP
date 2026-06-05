@@ -93,3 +93,42 @@
 2026-06-03 05:24:11,043 - INFO - Received type=5, seq=10, state=READY
 2026-06-03 05:24:11,046 - INFO - Received type=12, seq=11, state=READY
 2026-06-03 05:24:11,048 - INFO - [41039cbd9d50b047] Connection close received (code 0x0, reason )
+2026-06-03 05:30:24,522 - INFO - Server started on 0.0.0.0:4433
+2026-06-03 05:31:15,280 - INFO - [798df8e6743672db] Negotiated protocol version 0x00000001 (VERSION_1)
+2026-06-03 05:31:15,286 - INFO - [798df8e6743672db] ALPN negotiated protocol qsp
+2026-06-03 05:31:15,286 - INFO - Received type=1, seq=1, state=START
+2026-06-03 05:31:15,287 - INFO - Received type=3, seq=2, state=NEGOTIATED
+2026-06-03 05:31:15,289 - INFO - Received type=5, seq=3, state=READY
+2026-06-03 05:31:15,290 - INFO - Received type=8, seq=4, state=READY
+2026-06-03 05:31:15,296 - INFO - Received type=7, seq=5, state=READY
+2026-06-03 05:31:15,298 - INFO - Received type=9, seq=6, state=TRANSFERRING
+2026-06-03 05:31:15,302 - INFO - Received type=9, seq=7, state=TRANSFERRING
+2026-06-03 05:31:15,308 - INFO - Received type=9, seq=8, state=TRANSFERRING
+2026-06-03 05:31:15,313 - INFO - Received type=11, seq=9, state=TRANSFERRING
+2026-06-03 05:31:15,316 - INFO - Received type=5, seq=10, state=READY
+2026-06-03 05:31:15,318 - INFO - Received type=12, seq=11, state=READY
+2026-06-03 05:31:15,320 - INFO - [798df8e6743672db] Connection close received (code 0x0, reason )
+2026-06-03 05:31:32,972 - INFO - [8dc70ca255c94818] Negotiated protocol version 0x00000001 (VERSION_1)
+2026-06-03 05:31:32,976 - INFO - [8dc70ca255c94818] ALPN negotiated protocol qsp
+2026-06-03 05:31:32,976 - INFO - Received type=1, seq=1, state=START
+2026-06-03 05:31:32,978 - INFO - Received type=3, seq=2, state=NEGOTIATED
+2026-06-03 05:31:32,980 - INFO - Received type=5, seq=3, state=READY
+2026-06-03 05:31:32,981 - INFO - Received type=8, seq=4, state=READY
+2026-06-03 05:31:32,987 - INFO - Received type=7, seq=5, state=READY
+2026-06-03 05:31:32,988 - INFO - Received type=11, seq=6, state=TRANSFERRING
+2026-06-03 05:31:32,993 - INFO - Received type=5, seq=7, state=READY
+2026-06-03 05:31:32,995 - INFO - Received type=12, seq=8, state=READY
+2026-06-03 05:31:32,996 - INFO - [8dc70ca255c94818] Connection close received (code 0x0, reason )
+2026-06-03 05:33:20,101 - INFO - [73457d44f4906de4] Negotiated protocol version 0x00000001 (VERSION_1)
+2026-06-03 05:33:20,106 - INFO - [73457d44f4906de4] ALPN negotiated protocol qsp
+2026-06-03 05:33:20,106 - INFO - Received type=1, seq=1, state=START
+2026-06-03 05:33:20,108 - INFO - Received type=3, seq=2, state=NEGOTIATED
+2026-06-03 05:33:20,109 - INFO - Received type=5, seq=3, state=READY
+2026-06-03 05:33:20,110 - INFO - Received type=8, seq=4, state=READY
+2026-06-03 05:33:20,115 - INFO - Received type=7, seq=5, state=READY
+2026-06-03 05:33:20,116 - INFO - Received type=9, seq=6, state=TRANSFERRING
+2026-06-03 05:33:20,120 - INFO - Received type=9, seq=7, state=TRANSFERRING
+2026-06-03 05:33:20,122 - INFO - Received type=11, seq=8, state=TRANSFERRING
+2026-06-03 05:33:20,128 - INFO - Received type=5, seq=9, state=READY
+2026-06-03 05:33:20,130 - INFO - Received type=12, seq=10, state=READY
+2026-06-03 05:33:20,131 - INFO - [73457d44f4906de4] Connection close received (code 0x0, reason )
